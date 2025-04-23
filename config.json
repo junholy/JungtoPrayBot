@@ -1,7 +1,4 @@
 {
-    "chats": {
-        "-1002357866572": {
-            "topic_id": 6
-        }
-    }
+    "chats": {},
+    "last_processed_update_id": 0
 } 

@@ -2,11 +2,12 @@ name: Send Daily Message
 
 on:
   schedule:
-    - cron: '30 19 * * *'  # UTC 기준 19:30 (한국 시간 04:30)
+    - cron: '30 19 * * *'  # UTC 기준 19:30 (한국 시간 04:30) - 메시지 전송
+    - cron: '*/10 * * * *'  # 10분마다 실행 - 설정 업데이트
   workflow_dispatch:  # 수동 실행 옵션 추가
 
 jobs:
-  send-message:
+  process-telegram-updates:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -22,5 +23,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Run script
-        run: python send_message.py 
+      - name: Get current time
+        id: time
+        run: echo "::set-output name=time::$(date '+%H:%M')"
+        
+      - name: Run script (update only)
+        run: python update_config.py
+        
+      - name: Run script (send message)
+        if: steps.time.outputs.time == '19:30'
+        run: python send_message.py
+        
+      - name: Commit and push if config changed
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git add config.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update config.json"
+          git push 
