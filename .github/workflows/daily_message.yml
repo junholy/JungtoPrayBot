@@ -29,7 +29,7 @@ jobs:
           
       - name: Get current time
         id: time
-        run: echo "::set-output name=time::$(date '+%H:%M')"
+        run: echo "time=$(date '+%H:%M')" >> $GITHUB_OUTPUT
         
       - name: Run script (update only)
         run: python update_config.py
