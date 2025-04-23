@@ -6,6 +6,10 @@ on:
     - cron: '*/10 * * * *'  # 10분마다 실행 - 설정 업데이트
   workflow_dispatch:  # 수동 실행 옵션 추가
 
+# 권한 설정 추가
+permissions:
+  contents: write
+
 jobs:
   process-telegram-updates:
     runs-on: ubuntu-latest
@@ -40,4 +44,6 @@ jobs:
           git config --global user.email 'actions@github.com'
           git add config.json
           git diff --quiet && git diff --staged --quiet || git commit -m "Update config.json"
-          git push 
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
