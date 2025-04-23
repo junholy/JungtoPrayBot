@@ -2,42 +2,103 @@ from telegram import Bot
 from datetime import datetime, timedelta
 import pytz
 import asyncio
+import json
+import os
+import requests
 
-# 1. 봇 토큰과 대상 채팅 ID
+# 1. 봇 토큰 설정
 TOKEN = '7532536299:AAFzFoD584PAG3ZeANL-TAb_xB7tMLi2s6o'
-CHAT_ID = '-1002357866572'  # 실제 채팅 ID로 변경 필요
-MESSAGE_THREAD_ID = 6  # 필요한 경우 토픽 ID 입력
 
-# 2. 한국 시간대 설정
-korea_tz = pytz.timezone('Asia/Seoul')
-today = datetime.now(korea_tz)
+# 2. 설정 파일 경로
+CONFIG_FILE = 'config.json'
 
-# # 테스트용 날짜 설정 (실제 배포 시 주석 처리)
-# test_mode = True
-# if test_mode:
-#     # 테스트용 날짜 (2025년 2월 16일로부터 10일 지난 것으로 가정)
-#     today = datetime(2025, 2, 26, tzinfo=korea_tz)
+# 3. 기본 설정
+default_config = {
+    "chats": {
+        # 예시: "-1002357866572": {"topic_id": 6}
+    }
+}
 
-# 3. 불기 연도 계산 (서기 + 544)
-buddhist_year = today.year + 544
+# 4. 설정 로드 함수
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    # 설정 파일이 없으면 기본 설정 저장 후 반환
+    save_config(default_config)
+    return default_config
 
-# 4. 요일 한글 변환
-weekdays = ['월', '화', '수', '목', '금', '토', '일']
-weekday_korean = weekdays[today.weekday()]
+# 5. 설정 저장 함수
+def save_config(config):
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=4)
 
-# 5. 결사 일자 계산
-start_date = datetime(2025, 2, 16, tzinfo=korea_tz)  # 입재식 날짜
-days_passed = (today - start_date).days  # +1은 시작일을 1일차로 계산
+# 6. 텔레그램 API에서 업데이트 가져오기
+def get_updates():
+    url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    return None
 
-# 현재 날짜가 입재식 날짜보다 이전인 경우 D-Day로 표시
-if today < start_date:
-    days_to_start = (start_date - today).days
-    days_message = f"입재식 D-{days_to_start}"
-else:
-    days_message = f"1차 천일결사 8차 백일기도 {days_passed}일 째 기도"
+# 7. /set_topic 명령어 확인 및 설정 업데이트
+def update_config_from_updates():
+    updates = get_updates()
+    if not updates or not updates.get("ok"):
+        print("업데이트를 가져올 수 없습니다.")
+        return
+    
+    config = load_config()
+    updated = False
+    
+    for update in updates.get("result", []):
+        # 메시지 확인
+        if "message" in update:
+            message = update["message"]
+            # /set_topic 명령어 확인
+            if "text" in message and message["text"] == "/set_topic":
+                chat_id = str(message["chat"]["id"])
+                message_thread_id = message.get("message_thread_id")
+                
+                if message_thread_id:
+                    # 설정 업데이트
+                    if chat_id not in config["chats"]:
+                        config["chats"][chat_id] = {}
+                    
+                    config["chats"][chat_id]["topic_id"] = message_thread_id
+                    print(f"새로운 토픽 설정: 채팅 {chat_id}, 토픽 {message_thread_id}")
+                    updated = True
+    
+    if updated:
+        save_config(config)
+        print("설정이 업데이트되었습니다.")
 
-# 6. 메시지 템플릿
-message = f"""[불기 {buddhist_year}년 {today.month}월 {today.day}일 {weekday_korean}요일] 
+# 8. 메시지 생성 함수
+def create_message():
+    # 한국 시간대 설정
+    korea_tz = pytz.timezone('Asia/Seoul')
+    today = datetime.now(korea_tz)
+    
+    # 불기 연도 계산 (서기 + 544)
+    buddhist_year = today.year + 544
+    
+    # 요일 한글 변환
+    weekdays = ['월', '화', '수', '목', '금', '토', '일']
+    weekday_korean = weekdays[today.weekday()]
+    
+    # 결사 일자 계산
+    start_date = datetime(2025, 2, 16, tzinfo=korea_tz)  # 입재식 날짜
+    days_passed = (today - start_date).days
+    
+    # 현재 날짜가 입재식 날짜보다 이전인 경우 D-Day로 표시
+    if today < start_date:
+        days_to_start = (start_date - today).days
+        days_message = f"입재식 D-{days_to_start}"
+    else:
+        days_message = f"1차 천일결사 8차 백일기도 {days_passed}일 째 기도"
+    
+    # 메시지 템플릿
+    message = f"""[불기 {buddhist_year}년 {today.month}월 {today.day}일 {weekday_korean}요일] 
 정토행자 제2차 만일결사 중
 {days_message}
 
@@ -54,16 +115,34 @@ message = f"""[불기 {buddhist_year}년 {today.month}월 {today.day}일 {weekda
 전법(백일법문, 불교대학, 행복학교), 백일법문 오프 프로그램 참여 중 선택하여 진행
 
 🔻천일결사 기도 https://pray.jungto.org"""
-
-# 7. 비동기 함수로 메시지 전송
-async def send_telegram_message():
-    bot = Bot(token=TOKEN)
-    await bot.send_message(
-        chat_id=CHAT_ID, 
-        text=message,
-        message_thread_id=MESSAGE_THREAD_ID  # 토픽 ID가 있는 경우에만 사용
-    )
     
-# 8. 비동기 함수 실행
+    return message
+
+# 9. 자동 메시지 전송 함수
+async def send_daily_message():
+    # 먼저 설정 업데이트
+    update_config_from_updates()
+    
+    config = load_config()
+    message = create_message()
+    bot = Bot(token=TOKEN)
+    
+    # 설정 파일에 저장된 모든 채팅/토픽에 메시지 전송
+    for chat_id, chat_config in config.get("chats", {}).items():
+        if "topic_id" in chat_config:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    message_thread_id=chat_config["topic_id"]
+                )
+                print(f"메시지 전송 성공: 채팅 {chat_id}, 토픽 {chat_config['topic_id']}")
+            except Exception as e:
+                print(f"메시지 전송 실패: {e}")
+
+# 10. 메인 함수
+async def main():
+    await send_daily_message()
+
 if __name__ == "__main__":
-    asyncio.run(send_telegram_message())
+    asyncio.run(main())
