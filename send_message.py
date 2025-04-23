@@ -5,8 +5,8 @@ import asyncio
 
 # 1. 봇 토큰과 대상 채팅 ID
 TOKEN = '7532536299:AAFzFoD584PAG3ZeANL-TAb_xB7tMLi2s6o'
-CHAT_ID = '-1002533690170'  # 실제 채팅 ID로 변경 필요
-MESSAGE_THREAD_ID = 9  # 필요한 경우 토픽 ID 입력
+CHAT_ID = '-1002357866572'  # 실제 채팅 ID로 변경 필요
+MESSAGE_THREAD_ID = 6  # 필요한 경우 토픽 ID 입력
 
 # 2. 한국 시간대 설정
 korea_tz = pytz.timezone('Asia/Seoul')
