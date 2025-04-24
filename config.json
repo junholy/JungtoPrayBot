@@ -1,10 +1,10 @@
 {
-    "last_processed_update_id": 43931043,
+    "last_processed_update_id": 43931051,
     "chats": [
         {
             "chat_id": "-1002357866572",
             "type": "supergroup",
-            "message_thread_id": 6
+            "message_thread_id": 5
         },
         {
             "chat_id": "-1002533690170",
