@@ -4,6 +4,8 @@ import pytz
 import asyncio
 import json
 import os
+import requests
+import sys
 
 # 1. 봇 토큰 설정
 TOKEN = '7532536299:AAFzFoD584PAG3ZeANL-TAb_xB7tMLi2s6o'
@@ -72,28 +74,82 @@ async def send_daily_message():
     print("\n메시지 전송 시작...")
     
     # 설정 파일에 저장된 모든 채팅/토픽에 메시지 전송
-    if "chats" not in config or not config["chats"]:
+    chats = config.get("chats", [])
+    if not chats:
         print("설정된 채팅방이 없습니다.")
         return
     
-    for chat_id, chat_config in config.get("chats", {}).items():
-        if "topic_id" in chat_config:
-            topic_id = chat_config["topic_id"]
-            print(f"메시지 전송 시도: 채팅 {chat_id}, 토픽 {topic_id}")
-            
-            try:
+    for chat in chats:
+        chat_id = chat.get("chat_id")
+        chat_type = chat.get("type")
+        message_thread_id = chat.get("message_thread_id")
+        
+        print(f"메시지 전송 시도: 채팅 {chat_id}, 타입 {chat_type}")
+        
+        try:
+            # supergroup이고 message_thread_id가 있는 경우에만 thread_id 사용
+            if chat_type == "supergroup" and message_thread_id:
                 await bot.send_message(
                     chat_id=chat_id,
                     text=message,
-                    message_thread_id=topic_id
+                    message_thread_id=message_thread_id
                 )
-                print(f"메시지 전송 성공: 채팅 {chat_id}, 토픽 {topic_id}")
-            except Exception as e:
-                print(f"메시지 전송 실패: {e}")
+                print(f"메시지 전송 성공: 채팅 {chat_id}, 토픽 {message_thread_id}")
+            else:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=message
+                )
+                print(f"메시지 전송 성공: 채팅 {chat_id}")
+        except Exception as e:
+            print(f"메시지 전송 실패: {e}")
 
 # 6. 메인 함수
 async def main():
     await send_daily_message()
+
+def send_message():
+    # config.json 파일 읽기
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print("config.json 파일을 찾을 수 없습니다.")
+        sys.exit(1)
+    
+    bot_token = config.get("bot_token")
+    chats = config.get("chats", [])
+    message = config.get("message", "안녕하세요!")
+    
+    if not bot_token:
+        print("봇 토큰이 설정되지 않았습니다.")
+        sys.exit(1)
+    
+    if not chats:
+        print("채팅 정보가 설정되지 않았습니다.")
+        sys.exit(1)
+    
+    # 각 채팅에 메시지 보내기
+    for chat in chats:
+        chat_id = chat.get("chat_id")
+        chat_type = chat.get("type")
+        message_thread_id = chat.get("message_thread_id")
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        params = {
+            "chat_id": chat_id,
+            "text": message
+        }
+        
+        # supergroup이고 message_thread_id가 있는 경우 추가
+        if chat_type == "supergroup" and message_thread_id:
+            params["message_thread_id"] = message_thread_id
+        
+        response = requests.get(url, params=params)
+        if response.ok:
+            print(f"메시지가 성공적으로 전송되었습니다: chat_id={chat_id}")
+        else:
+            print(f"메시지 전송 실패: chat_id={chat_id}, 오류={response.text}")
 
 if __name__ == "__main__":
     asyncio.run(main())

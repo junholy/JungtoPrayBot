@@ -1,41 +1,32 @@
-name: Send Daily Message
+name: 매일 메시지 보내기
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # 10분마다 실행 - 설정 업데이트 및 알맞은 시간대에는 메시지도 전송
-  workflow_dispatch:  # 수동 실행 옵션 추가
+    - cron: '30 0 * * *'  # 매일 UTC 00:30 (한국 시간 09:30)
+    - cron: '0 */3 * * *'  # 3시간마다 설정 업데이트
+  workflow_dispatch:  # 수동 실행 가능
 
 # 권한 설정 추가
 permissions:
   contents: write
 
 jobs:
-  process-telegram-updates:
+  update-config:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v2
         
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Python 설정
+        uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: '3.x'
           
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          
-      - name: Get current time
-        id: time
-        run: echo "time=$(date '+%H:%M')" >> $GITHUB_OUTPUT
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
         
-      - name: Run script (update only)
+      - name: 설정 업데이트
         run: python update_config.py
-        
-      - name: Run script (send message)
-        if: ${{ steps.time.outputs.time >= '00:14' && steps.time.outputs.time < '00:24' }}
-        run: python send_message.py
         
       - name: Commit and push if config changed
         run: |
@@ -45,4 +36,24 @@ jobs:
           git diff --quiet && git diff --staged --quiet || git commit -m "Update config.json"
           git push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  send-message:
+    runs-on: ubuntu-latest
+    # 한국 시간 09:30에만 실행되도록 조건 추가
+    if: github.event.schedule == '30 0 * * *' || github.event_name == 'workflow_dispatch'
+    needs: update-config  # 설정 업데이트 후 실행
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v2
+        
+      - name: Python 설정
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+          
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+        
+      - name: 메시지 보내기
+        run: python send_message.py 

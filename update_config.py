@@ -2,6 +2,7 @@ from telegram import Bot
 import json
 import os
 import requests
+import sys
 
 # 1. 봇 토큰 설정
 TOKEN = '7532536299:AAFzFoD584PAG3ZeANL-TAb_xB7tMLi2s6o'
@@ -53,6 +54,10 @@ def update_config_from_updates():
     
     print("텔레그램 업데이트 처리 시작...")
     
+    # 채팅 목록 초기화 (새 형식)
+    if "chats" not in config or isinstance(config["chats"], dict):
+        config["chats"] = []
+    
     for update in updates.get("result", []):
         update_id = update["update_id"]
         max_update_id = max(max_update_id, update_id)
@@ -64,32 +69,47 @@ def update_config_from_updates():
         # 메시지 확인
         if "message" in update:
             message = update["message"]
+            chat = message["chat"]
+            chat_id = str(chat["id"])
+            chat_type = chat.get("type")
+            message_thread_id = message.get("message_thread_id")
             
             # 디버깅을 위한 메시지 정보 출력
             print(f"메시지 ID: {update_id}, 내용: {message.get('text', '텍스트 없음')}")
+            print(f"채팅 타입: {chat_type}, 채팅 ID: {chat_id}")
             
-            # /set_topic 명령어 확인 (정확히 일치하는지 확인)
-            if "text" in message and message["text"].strip() == "/set_topic":
-                chat_id = str(message["chat"]["id"])
-                message_thread_id = message.get("message_thread_id")
-                
-                print(f"'/set_topic' 명령어 감지: 채팅 {chat_id}, 토픽 {message_thread_id}")
-                
-                if message_thread_id:
-                    # 설정 업데이트
-                    if "chats" not in config:
-                        config["chats"] = {}
-                    
-                    if chat_id not in config["chats"]:
-                        config["chats"][chat_id] = {}
-                    
-                    config["chats"][chat_id]["topic_id"] = message_thread_id
-                    print(f"새로운 토픽 설정 완료: 채팅 {chat_id}, 토픽 {message_thread_id}")
+            # 채팅 정보 저장
+            chat_entry = {
+                "chat_id": chat_id,
+                "type": chat_type,
+                "message_thread_id": None
+            }
+            
+            # supergroup이고 message_thread_id가 있는 경우
+            if chat_type == "supergroup" and message_thread_id:
+                chat_entry["message_thread_id"] = message_thread_id
+                print(f"토픽 ID 감지: {message_thread_id}")
+            
+            # 이미 존재하는 chat_id인지 확인
+            chat_exists = False
+            for i, existing_chat in enumerate(config["chats"]):
+                if existing_chat.get("chat_id") == chat_id:
+                    # 기존 채팅 정보 업데이트
+                    if message_thread_id:  # message_thread_id가 있는 경우에만 업데이트
+                        config["chats"][i]["message_thread_id"] = message_thread_id
+                    chat_exists = True
                     updated = True
+                    break
+            
+            # 새 채팅 추가
+            if not chat_exists and message_thread_id:
+                config["chats"].append(chat_entry)
+                updated = True
+                print(f"새 채팅 추가: {chat_entry}")
     
     # 마지막 처리된 update_id 저장
     if max_update_id > last_processed_id:
-        config["last_processed_update_id"] = max_update_id + 1
+        config["last_processed_update_id"] = max_update_id
         updated = True
     
     if updated:
@@ -100,9 +120,64 @@ def update_config_from_updates():
     
     # 현재 설정된 채팅/토픽 정보 출력
     print("현재 설정된 채팅/토픽:")
-    for chat_id, chat_config in config.get("chats", {}).items():
-        if "topic_id" in chat_config:
-            print(f"채팅 ID: {chat_id}, 토픽 ID: {chat_config['topic_id']}")
+    for chat in config.get("chats", []):
+        print(f"채팅 ID: {chat.get('chat_id')}, 타입: {chat.get('type')}, 토픽 ID: {chat.get('message_thread_id')}")
+
+def update_config(bot_token, chat_id):
+    # 채팅 정보 가져오기
+    url = f"https://api.telegram.org/bot{bot_token}/getChat"
+    params = {"chat_id": chat_id}
+    
+    response = requests.get(url, params=params)
+    if not response.ok:
+        print(f"Error getting chat info: {response.text}")
+        sys.exit(1)
+    
+    chat_info = response.json()["result"]
+    chat_type = chat_info.get("type")
+    
+    # config.json 파일 읽기
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        config = {"bot_token": bot_token, "chats": [], "message": "안녕하세요! 오늘의 메시지입니다."}
+    
+    # 채팅 정보 업데이트
+    chat_entry = {
+        "chat_id": chat_id,
+        "type": chat_type,
+        "message_thread_id": None
+    }
+    
+    # supergroup인 경우 message_thread_id 확인
+    if chat_type == "supergroup" and "message_thread_id" in chat_info:
+        chat_entry["message_thread_id"] = chat_info["message_thread_id"]
+    
+    # 이미 존재하는 chat_id인지 확인
+    for i, chat in enumerate(config["chats"]):
+        if chat["chat_id"] == chat_id:
+            config["chats"][i] = chat_entry
+            break
+    else:
+        config["chats"].append(chat_entry)
+    
+    # config.json 파일 업데이트
+    with open("config.json", "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    
+    print(f"채팅 정보가 업데이트되었습니다: {chat_entry}")
 
 if __name__ == "__main__":
-    update_config_from_updates() 
+    # 명령줄 인수가 있으면 새 함수 사용, 없으면 기존 함수 사용
+    if len(sys.argv) > 1:
+        if len(sys.argv) == 3:
+            bot_token = sys.argv[1]
+            chat_id = sys.argv[2]
+            update_config(bot_token, chat_id)
+        else:
+            print("사용법: python update_config.py <bot_token> <chat_id>")
+            sys.exit(1)
+    else:
+        # 기존 방식으로 업데이트
+        update_config_from_updates() 
