@@ -1,4 +1,11 @@
 {
-    "chats": {},
-    "last_processed_update_id": 0
-} 
+    "chats": {
+        "-1002533690170": {
+            "topic_id": 3
+        },
+        "-1002357866572": {
+            "topic_id": 6
+        }
+    },
+    "last_processed_update_id": 43931033
+}
