@@ -34,7 +34,7 @@ jobs:
         run: python update_config.py
         
       - name: Run script (send message)
-        if: ${{ steps.time.outputs.time >= '00:03' && steps.time.outputs.time < '00:13' }}
+        if: ${{ steps.time.outputs.time >= '00:14' && steps.time.outputs.time < '00:24' }}
         run: python send_message.py
         
       - name: Commit and push if config changed
