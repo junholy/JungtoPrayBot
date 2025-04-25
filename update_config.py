@@ -78,6 +78,24 @@ def update_config_from_updates():
             print(f"메시지 ID: {update_id}, 내용: {message.get('text', '텍스트 없음')}")
             print(f"채팅 타입: {chat_type}, 채팅 ID: {chat_id}")
             
+            # /remove_topic 명령어 처리
+            if message.get('text') == '/remove_topic':
+                # 채팅 목록에서 해당 채팅 제거
+                removed = False
+                for i, existing_chat in enumerate(config["chats"]):
+                    if existing_chat.get("chat_id") == chat_id:
+                        config["chats"].pop(i)
+                        removed = True
+                        updated = True
+                        print(f"채팅 제거됨: {chat_id}")
+                        # 제거 확인 메시지 보내기
+                        send_removal_message(TOKEN, chat_id, message_thread_id)
+                        break
+                
+                if not removed:
+                    print(f"제거할 채팅을 찾을 수 없음: {chat_id}")
+                continue
+            
             # 채팅 정보 저장
             chat_entry = {
                 "chat_id": chat_id,
@@ -195,15 +213,67 @@ def send_confirmation_message(bot_token, chat_id):
     if not response.ok:
         print(f"Error sending confirmation message: {response.text}")
 
+def send_removal_message(bot_token, chat_id, message_thread_id=None):
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    params = {
+        "chat_id": chat_id,
+        "text": "기도 알림 대상에서 제거되었습니다."
+    }
+    
+    if message_thread_id:
+        params["message_thread_id"] = message_thread_id
+    
+    response = requests.get(url, params=params)
+    if not response.ok:
+        print(f"Error sending removal message: {response.text}")
+
+def remove_chat(bot_token, chat_id):
+    # config.json 파일 읽기
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        print("설정 파일이 존재하지 않습니다.")
+        return False
+    
+    # 채팅 목록에서 해당 채팅 찾기
+    message_thread_id = None
+    removed = False
+    for i, chat in enumerate(config["chats"]):
+        if chat["chat_id"] == chat_id:
+            message_thread_id = chat.get("message_thread_id")
+            config["chats"].pop(i)
+            removed = True
+            break
+    
+    if not removed:
+        print(f"제거할 채팅을 찾을 수 없음: {chat_id}")
+        return False
+    
+    # config.json 파일 업데이트
+    with open("config.json", "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    
+    print(f"채팅이 제거되었습니다: {chat_id}")
+    
+    # 제거 확인 메시지 보내기
+    send_removal_message(bot_token, chat_id, message_thread_id)
+    return True
+
 if __name__ == "__main__":
     # 명령줄 인수가 있으면 새 함수 사용, 없으면 기존 함수 사용
     if len(sys.argv) > 1:
-        if len(sys.argv) == 3:
+        if len(sys.argv) >= 3:
             bot_token = sys.argv[1]
             chat_id = sys.argv[2]
-            update_config(bot_token, chat_id)
+            
+            # 제거 명령어 처리
+            if len(sys.argv) >= 4 and sys.argv[3] == "remove":
+                remove_chat(bot_token, chat_id)
+            else:
+                update_config(bot_token, chat_id)
         else:
-            print("사용법: python update_config.py <bot_token> <chat_id>")
+            print("사용법: python update_config.py <bot_token> <chat_id> [remove]")
             sys.exit(1)
     else:
         # 기존 방식으로 업데이트
