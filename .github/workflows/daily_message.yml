@@ -2,7 +2,7 @@ name: 매일 메시지 보내기
 
 on:
   schedule:
-    - cron: '30 0 * * *'  # 매일 UTC 00:30 (한국 시간 09:30)
+    - cron: '0 3 * * *'  # 매일 UTC 3:00 (한국 시간 12:00)
     - cron: '*/10 * * * *'  # 10분마다 실행
   workflow_dispatch:  # 수동 실행 가능
 
@@ -41,7 +41,7 @@ jobs:
   send-message:
     runs-on: ubuntu-latest
     # 한국 시간 09:30에만 실행되도록 조건 추가
-    if: github.event.schedule == '30 0 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
     needs: update-config  # 설정 업데이트 후 실행
     steps:
       - name: 저장소 체크아웃
