@@ -78,6 +78,11 @@ def update_config_from_updates():
             print(f"메시지 ID: {update_id}, 내용: {message.get('text', '텍스트 없음')}")
             print(f"채팅 타입: {chat_type}, 채팅 ID: {chat_id}")
             
+            # /start 명령어 처리
+            if message.get('text') == '/start':
+                send_help_message(TOKEN, chat_id, message_thread_id)
+                continue
+            
             # /remove_topic 명령어 처리
             if message.get('text') == '/remove_topic':
                 # 채팅 목록에서 해당 채팅 제거
@@ -259,6 +264,30 @@ def remove_chat(bot_token, chat_id):
     # 제거 확인 메시지 보내기
     send_removal_message(bot_token, chat_id, message_thread_id)
     return True
+
+def send_help_message(bot_token, chat_id, message_thread_id=None):
+    help_text = """안녕하세요! 기도 알림 봇입니다. 다음 명령어를 사용할 수 있습니다:
+
+/start - 이 도움말 메시지를 표시합니다.
+/set_topic - 현재 채팅을 기도 알림 대상으로 등록합니다.
+/remove_topic - 현재 채팅을 기도 알림 대상에서 제거합니다.
+
+슈퍼그룹의 경우, 토픽 내에서 명령어를 사용하면 해당 토픽으로 알림이 전송됩니다.
+"""
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    params = {
+        "chat_id": chat_id,
+        "text": help_text,
+        "parse_mode": "Markdown"
+    }
+    
+    if message_thread_id:
+        params["message_thread_id"] = message_thread_id
+    
+    response = requests.get(url, params=params)
+    if not response.ok:
+        print(f"Error sending help message: {response.text}")
 
 if __name__ == "__main__":
     # 명령줄 인수가 있으면 새 함수 사용, 없으면 기존 함수 사용
