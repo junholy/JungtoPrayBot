@@ -167,6 +167,33 @@ def update_config(bot_token, chat_id):
         json.dump(config, f, indent=2, ensure_ascii=False)
     
     print(f"채팅 정보가 업데이트되었습니다: {chat_entry}")
+    
+    # 설정 저장 후 확인 메시지 보내기
+    send_confirmation_message(bot_token, chat_id)
+
+def send_confirmation_message(bot_token, chat_id):
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    params = {
+        "chat_id": chat_id,
+        "text": "기도 알림 대상으로 등록되었습니다."
+    }
+    
+    # config.json에서 현재 채팅의 message_thread_id 확인
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+            
+        # 현재 채팅의 message_thread_id 찾기
+        for chat in config["chats"]:
+            if chat["chat_id"] == chat_id and chat["message_thread_id"]:
+                params["message_thread_id"] = chat["message_thread_id"]
+                break
+    except Exception as e:
+        print(f"설정 파일 읽기 오류: {e}")
+    
+    response = requests.get(url, params=params)
+    if not response.ok:
+        print(f"Error sending confirmation message: {response.text}")
 
 if __name__ == "__main__":
     # 명령줄 인수가 있으면 새 함수 사용, 없으면 기존 함수 사용

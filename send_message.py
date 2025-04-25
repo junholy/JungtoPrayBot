@@ -151,5 +151,16 @@ def send_message():
         else:
             print(f"메시지 전송 실패: chat_id={chat_id}, 오류={response.text}")
 
+def should_send_message():
+    # 한국 시간대 설정
+    korea_tz = pytz.timezone('Asia/Seoul')
+    now = datetime.now(korea_tz)
+    
+    # 한국 시간 09:30에만 메시지 전송
+    return now.hour == 9 and now.minute >= 30 and now.minute < 40
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if should_send_message() or os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch':
+        asyncio.run(main())
+    else:
+        print("지금은 메시지를 보낼 시간이 아닙니다.")
